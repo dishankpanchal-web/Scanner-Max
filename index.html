@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1d4ed8">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="FormScan">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<title>Feedback Form Scanner</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+
+:root{--bg:#f6f7f9;--card:#fff;--tx:#1b1f24;--mu:#667085;--bd:#dfe3e8;--ac:#1d4ed8;--ok:#15803d;--er:#b91c1c;--wa:#b45309;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#14171c;--card:#1d2127;--tx:#e8eaed;--mu:#9aa3af;--bd:#313842;--ac:#6ea0ff;--ok:#4ade80;--er:#f87171;--wa:#fbbf24}}
+:root[data-theme="dark"]{--bg:#14171c;--card:#1d2127;--tx:#e8eaed;--mu:#9aa3af;--bd:#313842;--ac:#6ea0ff;--ok:#4ade80;--er:#f87171;--wa:#fbbf24}
+*{box-sizing:border-box}html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+main{max-width:1100px;margin:0 auto;padding:20px 16px 60px}
+h1{font-size:22px;margin:0 0 4px}p.sub{color:var(--mu);margin:0 0 18px}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:16px;margin-bottom:16px}
+.drop{border:2px dashed var(--bd);border-radius:12px;padding:28px;text-align:center;cursor:pointer;color:var(--mu)}
+.drop.over{border-color:var(--ac);color:var(--ac)}
+button{font:inherit;border:1px solid var(--bd);background:var(--card);color:var(--tx);padding:8px 14px;border-radius:8px;cursor:pointer}
+button.p{background:var(--ac);border-color:var(--ac);color:#fff}button:disabled{opacity:.5;cursor:default}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.sp{flex:1}
+.q{display:flex;gap:10px;align-items:center;padding:6px 0;border-bottom:1px solid var(--bd);font-size:14px}
+.q:last-child{border:0}.q .n{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.s{font-size:12px;padding:2px 8px;border-radius:99px;border:1px solid var(--bd);color:var(--mu)}
+.s.done{color:var(--ok);border-color:var(--ok)}.s.err{color:var(--er);border-color:var(--er)}.s.run{color:var(--ac);border-color:var(--ac)}
+.tw{overflow-x:auto;border:1px solid var(--bd);border-radius:8px}
+table{border-collapse:collapse;font-size:13px;min-width:100%}
+th,td{border-bottom:1px solid var(--bd);border-right:1px solid var(--bd);padding:0;white-space:nowrap}
+th{background:var(--bg);padding:6px 8px;text-align:left;position:sticky;top:0}
+td input{border:0;background:transparent;color:inherit;font:inherit;padding:6px 8px;width:140px}
+td input.w{width:240px}td input.s1{width:70px}td input:focus{outline:2px solid var(--ac);outline-offset:-2px}
+td.flag{background:color-mix(in srgb,var(--wa) 18%,transparent)}
+.note{color:var(--wa);font-size:13px}.mu{color:var(--mu);font-size:13px}
+.hide{display:none}
+
+details{margin-bottom:12px}summary{cursor:pointer;color:var(--mu)}
+details input{width:100%;margin-top:6px;padding:8px;border:1px solid var(--bd);border-radius:8px;background:var(--bg);color:var(--tx);font:inherit}
+.cam{position:fixed;inset:0;background:#000;z-index:50;display:flex;flex-direction:column}
+.cam video{flex:1;min-height:0;width:100%;object-fit:contain;background:#000}
+.cam .bar{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:14px 16px calc(14px + env(safe-area-inset-bottom,0px));color:#fff}
+.cam button{background:#222;border-color:#444;color:#fff}
+.cam .shut{width:68px;height:68px;border-radius:50%;background:#fff;border:5px solid #888;padding:0}
+.cam .tip{position:absolute;top:calc(10px + env(safe-area-inset-top,0px));left:0;right:0;text-align:center;color:#fff;font-size:13px;text-shadow:0 1px 3px #000}
+.thumbs{display:flex;gap:6px;overflow-x:auto;margin-top:10px}.thumbs img{height:56px;border-radius:6px;border:1px solid var(--bd)}
+.big{padding:12px 18px;font-size:16px}
+</style>
+</head>
+<body>
+<main>
+<div class="row"><h1>Feedback Form Scanner</h1><span class="sp"></span><button id="inst" class="hide">Install app</button></div>
+<p class="sub">Photograph filled feedback forms with your phone camera. Answers are read automatically and compiled into an Excel sheet.</p>
+
+<details id="set"><summary>Settings (API key)</summary>
+  <input id="key" type="password" placeholder="Anthropic API key (sk-ant-…) — stored only on this device" autocomplete="off">
+  <input id="model" placeholder="Model" value="claude-sonnet-5-5">
+  <div class="row" style="margin-top:8px"><button id="sv" class="p">Save settings</button><span id="sm" class="mu"></span></div>
+</details>
+
+<div class="card">
+  <div class="row">
+    <button id="cam" class="p big">📷 Open camera</button>
+    <button id="shot" class="big">Take photo</button>
+    <button id="gal" class="big">From gallery</button>
+  </div>
+  <input id="fshot" type="file" accept="image/*" capture="environment" class="hide">
+  <input id="fgal" type="file" accept="image/*" multiple class="hide">
+  <p class="mu" style="margin:8px 0 0">Tip: lay the form flat, good light, whole page in frame, no shadows.</p>
+  <div id="thumbs" class="thumbs"></div>
+  <div id="queue" style="margin-top:10px"></div>
+  <div class="row" style="margin-top:10px">
+    <button id="go" class="p" disabled>Scan forms</button>
+    <button id="stop" disabled>Stop</button>
+    <button id="man">Add form manually</button>
+    <button id="clr" disabled>Clear all</button>
+    <span id="msg" class="mu"></span>
+  </div>
+</div>
+
+<div id="res" class="card hide">
+  <div class="row" style="margin-bottom:10px">
+    <b id="cnt"></b><span class="sp"></span>
+    <button id="xl" class="p">Excel (.xlsx)</button>
+    <button id="csv">CSV</button>
+  </div>
+  <p class="note" id="rv"></p>
+  <p class="mu">Cells are editable — fix anything misread before exporting. Highlighted cells were unclear or invalid. Results are kept on this device.</p>
+  <div class="tw"><table id="tb"></table></div>
+</div>
+</main>
+
+<div id="camv" class="cam hide">
+  <div class="tip">Fit the whole form in frame, then tap the shutter</div>
+  <video id="vid" playsinline muted autoplay></video>
+  <div class="bar"><button id="cx">Done</button><button id="snap" class="shut" aria-label="Capture"></button><span id="cc" style="min-width:64px;text-align:right">0 taken</span></div>
+</div>
+
+<script>
+const OPN=["Excellent","Very Good","Good","Okay"], CAT=["Excellent","Very Good","Good","Average","Poor"];
+const COLS=[
+ ["file","Source File",0],["prog","Programme Name",0],["org","Organised For",0],["date","Programme Date",0],["time","Programme Time",0],["venue","Programme Venue",0],
+ ["q1","Q1 Overall Opinion",OPN],["q2","Q2 Faculty Evaluation",OPN],
+ ["c_rel","Q3a Relevance to Topic (1-5)",5],["c_cov","Q3b Coverage (1-5)",5],["c_cla","Q3c Clarity (1-5)",5],["c_sup","Q3d Support Material (1-5)",5],["c_oth","Q3e Any Other (1-5)",5],["c_oth_t","Q3e Specify",0],
+ ["pos","Q4 Positive Aspects",0],["imp","Q5 Points for Improvement",0],
+ ["cat_q","Q6 Catering: Quality",CAT],["cat_s","Q6 Catering: Service",CAT],["cat_p","Q6 Catering: Presentation Style",CAT],["cat_m","Q6 Catering: Menu",CAT],
+ ["name","Name",0],["addr","Address",0],["pin","Pin Code",0],["phone","Phone",0],["mobile","Mobile",0],["email","E-mail",0],["note","Scan Notes",0]];
+const PROMPT=`You are reading ONE scanned/photographed, filled-in "FEEDBACK" form (Ahmedabad Management Association). Extract what the person filled in.
+Form layout: header fields (Programme Name, Organised for, Programme Date, Programme Time, Programme Venue); Q1 Overall opinion and Q2 Faculty evaluation, each with tick-box options Excellent / Very Good / Good / Okay (a tick/√/X in or next to ONE box); Q3 Course Content numeric ratings 1-5 (5=Excellent,4=Good,3=Fair,2=Satisfactory,1=Dissatisfied) for a) Relevance to Topic b) Coverage c) Clarity d) Support Material e) Any other (with text to specify); Q4 Positive aspects (free text); Q5 Points for improvement (free text); Q6 Catering table, rows Quality/Service/Presentation Style/Menu, columns Excellent/Very Good/Good/Average/Poor (one tick per row); footer: Name, Address, Pin Code, Phone, Mobile, E-mail.
+Rules: transcribe handwriting faithfully, do not invent. Use "" for anything blank. For tick boxes use EXACTLY one of the option labels or "" if none/ambiguous/multiple. Ratings are integers 1-5 or "" . Put anything doubtful in "note" (short, e.g. "Q3c illegible"), else "".
+Reply with ONLY one JSON object with keys: prog, org, date, time, venue, q1, q2, c_rel, c_cov, c_cla, c_sup, c_oth, c_oth_t, pos, imp, cat_q, cat_s, cat_p, cat_m, name, addr, pin, phone, mobile, email, note. If the image is not a feedback form return {"note":"Not a feedback form"}.`;
+
+
+const $=id=>document.getElementById(id);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const LS={get:k=>{try{return localStorage.getItem(k)}catch(e){return null}},set:(k,v)=>{try{localStorage.setItem(k,v)}catch(e){}}};
+let items=[], rows=[], ctl=null, stream=null, taken=0;
+try{rows=JSON.parse(LS.get("fb_rows")||"[]")}catch(e){rows=[]}
+const persist=()=>LS.set("fb_rows",JSON.stringify(rows));
+
+// ---- settings
+$("key").value=LS.get("fb_key")||""; $("model").value=LS.get("fb_model")||"claude-sonnet-5-5";
+if(!LS.get("fb_key")) $("set").open=true;
+$("sv").onclick=()=>{LS.set("fb_key",$("key").value.trim());LS.set("fb_model",$("model").value.trim()||"claude-sonnet-5-5");$("sm").textContent="Saved";drawQ()};
+
+// ---- capture
+let stamp=()=>new Date().toLocaleTimeString([], {hour:"2-digit",minute:"2-digit",second:"2-digit"});
+function addBlob(b,name){items.push({b,name,st:"queued",url:URL.createObjectURL(b)});drawQ()}
+$("shot").onclick=()=>$("fshot").click(); $("gal").onclick=()=>$("fgal").click();
+$("fshot").onchange=e=>{for(const f of e.target.files)addBlob(f,f.name||"Photo "+stamp());e.target.value=""};
+$("fgal").onchange=e=>{for(const f of e.target.files)if(f.type.startsWith("image/"))addBlob(f,f.name);e.target.value=""};
+$("cam").onclick=async()=>{
+  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){$("shot").click();return}
+  try{
+    stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:"environment"},width:{ideal:2560},height:{ideal:1920}},audio:false});
+    $("vid").srcObject=stream; taken=0; $("cc").textContent="0 taken"; $("camv").classList.remove("hide");
+  }catch(e){$("msg").textContent="Camera blocked — using the phone's camera app instead."; $("shot").click()}
+};
+$("snap").onclick=()=>{const v=$("vid"); if(!v.videoWidth)return;
+  const c=document.createElement("canvas"); c.width=v.videoWidth; c.height=v.videoHeight; c.getContext("2d").drawImage(v,0,0);
+  c.toBlob(b=>{addBlob(b,"Scan "+stamp()); taken++; $("cc").textContent=taken+" taken"; if(navigator.vibrate)navigator.vibrate(30)},"image/jpeg",.92)};
+const closeCam=()=>{if(stream)stream.getTracks().forEach(t=>t.stop());stream=null;$("camv").classList.add("hide")};
+$("cx").onclick=closeCam;
+
+function drawQ(){
+  $("thumbs").innerHTML=items.map(i=>`<img src="${i.url}" alt="">`).join("");
+  $("queue").innerHTML=items.map(it=>`<div class="q"><span class="n">${esc(it.name)}</span><span class="s ${it.st==="done"?"done":it.st==="error"?"err":it.st==="scanning"?"run":""}">${it.st==="error"?esc(it.err||"error"):it.st}</span></div>`).join("");
+  $("go").disabled=!items.some(i=>i.st==="queued"||i.st==="error");
+  $("clr").disabled=!items.length&&!rows.length;
+}
+
+// ---- scan
+async function toB64(blob){
+  const bm=await createImageBitmap(blob), s=Math.min(1,1800/Math.max(bm.width,bm.height));
+  const c=document.createElement("canvas"); c.width=Math.round(bm.width*s); c.height=Math.round(bm.height*s);
+  c.getContext("2d").drawImage(bm,0,0,c.width,c.height);
+  const b=await new Promise(r=>c.toBlob(r,"image/jpeg",.85));
+  return new Promise(r=>{const f=new FileReader();f.onload=()=>r(f.result.split(",")[1]);f.readAsDataURL(b)});
+}
+async function extract(blob,signal){
+  const key=LS.get("fb_key"), model=LS.get("fb_model")||"claude-sonnet-5-5";
+  if(!key){$("set").open=true;throw new Error("Add your API key in Settings")}
+  const data=await toB64(blob);
+  const r=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",signal,
+    headers:{"content-type":"application/json","x-api-key":key,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
+    body:JSON.stringify({model,max_tokens:2000,messages:[{role:"user",content:[{type:"image",source:{type:"base64",media_type:"image/jpeg",data}},{type:"text",text:PROMPT}]}]})});
+  const j=await r.json().catch(()=>({}));
+  if(!r.ok)throw new Error((j.error&&j.error.message)||("HTTP "+r.status));
+  const m=(j.content||[]).map(c=>c.text||"").join("").match(/\{[\s\S]*\}/);
+  if(!m)throw new Error("Unreadable result");
+  return JSON.parse(m[0]);
+}
+$("go").onclick=async()=>{
+  ctl=new AbortController(); $("stop").disabled=false; $("go").disabled=true; $("msg").textContent="";
+  for(const it of items){
+    if(ctl.signal.aborted)break; if(it.st==="done")continue;
+    it.st="scanning";it.err="";drawQ();
+    try{ rows.push(clean(await extract(it.b,ctl.signal),it.name)); it.st="done"; render(); }
+    catch(e){ if(e.name==="AbortError"){it.st="queued";break} it.st="error"; it.err=(e.message||"Failed").slice(0,70); if(/key|auth|401|403|credit|rate/i.test(e.message))break; }
+    drawQ();
+  }
+  $("stop").disabled=true; drawQ();
+};
+$("stop").onclick=()=>ctl&&ctl.abort();
+$("man").onclick=()=>{rows.push(clean({},"Manual entry"));render()};
+$("clr").onclick=()=>{if(!confirm("Clear all queued photos and captured results?"))return;items.forEach(i=>URL.revokeObjectURL(i.url));items=[];rows=[];render();drawQ()};
+
+function clean(d,file){
+  const r={file},bad=[];
+  for(const [k,,t] of COLS){ if(k==="file")continue; let v=d&&d[k]!=null?String(d[k]).trim():"";
+    if(Array.isArray(t)){ const m=t.find(o=>o.toLowerCase()===v.toLowerCase()); if(v&&!m)bad.push(k); v=m||""; }
+    else if(t===5){ const n=parseInt(v,10); if(v&&!(n>=1&&n<=5))bad.push(k); v=(n>=1&&n<=5)?n:""; }
+    r[k]=v; }
+  r._bad=bad; return r;
+}
+
+function render(){
+  $("res").classList.toggle("hide",!rows.length);
+  $("cnt").textContent=rows.length+" form"+(rows.length===1?"":"s")+" captured";
+  const nr=rows.filter(r=>r.note||r._bad.length).length;
+  $("rv").textContent=nr?nr+" form(s) have notes or unclear fields — please review.":"";
+  $("tb").innerHTML="<thead><tr>"+COLS.map(c=>`<th>${c[1]}</th>`).join("")+"</tr></thead><tbody>"+
+   rows.map((r,i)=>"<tr>"+COLS.map(([k,,t])=>{
+     const fl=r._bad.includes(k)||(k==="note"&&r.note)?"flag":"";
+     const cls=k==="pos"||k==="imp"||k==="addr"||k==="note"?"w":t===5?"s1":"";
+     return `<td class="${fl}"><input class="${cls}" data-i="${i}" data-k="${k}" value="${esc(r[k])}"></td>`}).join("")+"</tr>").join("")+"</tbody>";
+  $("tb").querySelectorAll("input").forEach(inp=>inp.onchange=()=>{const r=rows[inp.dataset.i],k=inp.dataset.k,t=COLS.find(c=>c[0]===k)[2];
+    let v=inp.value.trim(); if(t===5){const n=parseInt(v,10);v=(n>=1&&n<=5)?n:""} else if(Array.isArray(t)){const m=t.find(o=>o.toLowerCase()===v.toLowerCase());if(m)v=m;else if(v)r._bad.push(k);} r[k]=v; r._bad=r._bad.filter(x=>x!==k);});
+  drawQ();
+}
+
+function summary(){
+  const n=rows.length, S=[["Feedback Summary"],["Forms scanned",n],[]];
+  const cnt=(k,opts)=>opts.map(o=>rows.filter(r=>r[k]===o).length);
+  const blocks=[["Q1 Overall Opinion","q1",OPN],["Q2 Faculty Evaluation","q2",OPN],
+    ["Catering: Quality","cat_q",CAT],["Catering: Service","cat_s",CAT],["Catering: Presentation Style","cat_p",CAT],["Catering: Menu","cat_m",CAT]];
+  for(const [t,k,o] of blocks){S.push([t,...o,"Not marked"]);S.push(["Responses",...cnt(k,o),n-cnt(k,o).reduce((a,b)=>a+b,0)]);S.push([]);}
+  S.push(["Q3 Course Content (avg of 1-5)","Average","Responses"]);
+  for(const [k,l] of [["c_rel","Relevance to Topic"],["c_cov","Coverage"],["c_cla","Clarity"],["c_sup","Support Material"],["c_oth","Any other"]]){
+    const v=rows.map(r=>r[k]).filter(x=>x!==""); S.push([l,v.length?+(v.reduce((a,b)=>a+b,0)/v.length).toFixed(2):"",v.length]);}
+  return S;
+}
+function aoa(){return [COLS.map(c=>c[1]),...rows.map(r=>COLS.map(([k,,t])=>t===5&&r[k]!==""?Number(r[k]):r[k]))]}
+
+
+{const _r=render; render=function(){_r();persist()}}
+$("tb").addEventListener("change",persist);
+
+// ---- export (share sheet on phones, download elsewhere)
+async function out(blob,name){
+  const f=new File([blob],name,{type:blob.type});
+  if(navigator.canShare&&navigator.canShare({files:[f]})){try{await navigator.share({files:[f],title:name});return}catch(e){if(e.name==="AbortError")return}}
+  const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();a.remove();
+  setTimeout(()=>URL.revokeObjectURL(a.href),5000);
+}
+$("xl").onclick=()=>{
+  const wb=XLSX.utils.book_new(), ws=XLSX.utils.aoa_to_sheet(aoa());
+  ws["!cols"]=COLS.map(c=>({wch:Math.max(14,Math.min(40,c[1].length+2))}));
+  XLSX.utils.book_append_sheet(wb,ws,"Responses");
+  const ss=XLSX.utils.aoa_to_sheet(summary()); ss["!cols"]=[{wch:34},{wch:12},{wch:12},{wch:12},{wch:12},{wch:12},{wch:12}];
+  XLSX.utils.book_append_sheet(wb,ss,"Summary");
+  out(new Blob([XLSX.write(wb,{bookType:"xlsx",type:"array"})],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"}),"feedback_results.xlsx");
+};
+$("csv").onclick=()=>out(new Blob([XLSX.utils.sheet_to_csv(XLSX.utils.aoa_to_sheet(aoa()))],{type:"text/csv"}),"feedback_results.csv");
+
+// ---- install + offline
+let dip=null; addEventListener("beforeinstallprompt",e=>{e.preventDefault();dip=e;$("inst").classList.remove("hide")});
+$("inst").onclick=async()=>{if(dip){dip.prompt();dip=null;$("inst").classList.add("hide")}};
+if("serviceWorker" in navigator)addEventListener("load",()=>navigator.serviceWorker.register("sw.js").catch(()=>{}));
+render(); drawQ();
+</script>
+</body>
+</html>
