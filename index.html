@@ -12,6 +12,7 @@
 <link rel="apple-touch-icon" href="icon-192.png">
 <title>Feedback Form Scanner</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="ocr.js"></script>
 <style>
 
 :root{--bg:#f6f7f9;--card:#fff;--tx:#1b1f24;--mu:#667085;--bd:#dfe3e8;--ac:#1d4ed8;--ok:#15803d;--er:#b91c1c;--wa:#b45309;
@@ -52,6 +53,23 @@ details input{width:100%;margin-top:6px;padding:8px;border:1px solid var(--bd);b
 .cam .tip{position:absolute;top:calc(10px + env(safe-area-inset-top,0px));left:0;right:0;text-align:center;color:#fff;font-size:13px;text-shadow:0 1px 3px #000}
 .thumbs{display:flex;gap:6px;overflow-x:auto;margin-top:10px}.thumbs img{height:56px;border-radius:6px;border:1px solid var(--bd)}
 .big{padding:12px 18px;font-size:16px}
+body{font-size:16px;-webkit-text-size-adjust:100%}
+button{min-height:44px;touch-action:manipulation}
+.seg{display:flex;border:1px solid var(--bd);border-radius:10px;overflow:hidden;margin:6px 0 10px}
+.seg label{flex:1;text-align:center;padding:10px 6px;cursor:pointer;font-size:14px;line-height:1.25}
+.seg input{display:none}.seg label:has(input:checked){background:var(--ac);color:#fff}.seg small{opacity:.8}
+progress{width:100%;height:10px;accent-color:var(--ac)}
+.fc{border:1px solid var(--bd);border-radius:12px;margin-bottom:10px;background:var(--card)}
+.fc>summary{padding:12px;display:flex;gap:8px;align-items:center;list-style:none;cursor:pointer}
+.fc>summary::-webkit-details-marker{display:none}.fc>summary b{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fg{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px;padding:0 12px 12px}
+.fg label{display:block;font-size:12px;color:var(--mu);margin-bottom:2px}
+.fg input,.fg select,.fg textarea{width:100%;font:inherit;font-size:16px;padding:9px;border:1px solid var(--bd);border-radius:8px;background:var(--bg);color:var(--tx)}
+.fg .flag input,.fg .flag select,.fg .flag textarea{border-color:var(--wa);background:color-mix(in srgb,var(--wa) 15%,var(--bg))}
+.fg .wide{grid-column:1/-1}
+.dock{position:fixed;left:0;right:0;bottom:0;padding:10px 12px calc(10px + env(safe-area-inset-bottom,0px));background:var(--card);border-top:1px solid var(--bd);display:flex;gap:8px;z-index:20}
+.dock button{flex:1;font-weight:600}
+@media(max-width:600px){main{padding:14px 12px 96px}h1{font-size:19px}.row button{flex:1 1 45%}.big{flex:1 1 100%}.fg{grid-template-columns:1fr 1fr}}
 </style>
 </head>
 <body>
@@ -59,11 +77,18 @@ details input{width:100%;margin-top:6px;padding:8px;border:1px solid var(--bd);b
 <div class="row"><h1>Feedback Form Scanner</h1><span class="sp"></span><button id="inst" class="hide">Install app</button></div>
 <p class="sub">Photograph filled feedback forms with your phone camera. Answers are read automatically and compiled into an Excel sheet.</p>
 
-<details id="set"><summary>Settings (API key)</summary>
-  <input id="key" type="password" placeholder="Anthropic API key (sk-ant-…) — stored only on this device" autocomplete="off">
-  <input id="model" placeholder="Model" value="claude-sonnet-5-5">
-  <div class="row" style="margin-top:8px"><button id="sv" class="p">Save settings</button><span id="sm" class="mu"></span></div>
-</details>
+<div class="card">
+  <b>Scan engine</b>
+  <div class="seg" id="eng">
+    <label><input type="radio" name="e" value="ocr"><span>On-device OCR<br><small>free · works offline · no key</small></span></label>
+    <label><input type="radio" name="e" value="ai"><span>AI vision<br><small>best for handwriting</small></span></label>
+  </div>
+  <details id="set"><summary>AI settings (API key — only for AI vision)</summary>
+    <input id="key" type="password" placeholder="Anthropic API key (sk-ant-…) — stored only on this device" autocomplete="off">
+    <input id="model" placeholder="Model" value="claude-sonnet-5-5">
+    <div class="row" style="margin-top:8px"><button id="sv" class="p">Save settings</button><span id="sm" class="mu"></span></div>
+  </details>
+</div>
 
 <div class="card">
   <div class="row">
@@ -76,8 +101,8 @@ details input{width:100%;margin-top:6px;padding:8px;border:1px solid var(--bd);b
   <p class="mu" style="margin:8px 0 0">Tip: lay the form flat, good light, whole page in frame, no shadows.</p>
   <div id="thumbs" class="thumbs"></div>
   <div id="queue" style="margin-top:10px"></div>
+  <div id="pw" class="hide" style="margin-top:10px"><div class="mu" id="pt"></div><progress id="pg" max="1" value="0"></progress></div>
   <div class="row" style="margin-top:10px">
-    <button id="go" class="p" disabled>Scan forms</button>
     <button id="stop" disabled>Stop</button>
     <button id="man">Add form manually</button>
     <button id="clr" disabled>Clear all</button>
@@ -88,14 +113,15 @@ details input{width:100%;margin-top:6px;padding:8px;border:1px solid var(--bd);b
 <div id="res" class="card hide">
   <div class="row" style="margin-bottom:10px">
     <b id="cnt"></b><span class="sp"></span>
-    <button id="xl" class="p">Excel (.xlsx)</button>
     <button id="csv">CSV</button>
   </div>
   <p class="note" id="rv"></p>
   <p class="mu">Cells are editable — fix anything misread before exporting. Highlighted cells were unclear or invalid. Results are kept on this device.</p>
-  <div class="tw"><table id="tb"></table></div>
+  <div id="forms"></div>
 </div>
 </main>
+
+<div class="dock"><button id="go" class="p" disabled>Scan forms</button><button id="xl" class="p" disabled>Download Excel</button></div>
 
 <div id="camv" class="cam hide">
   <div class="tip">Fit the whole form in frame, then tap the shutter</div>
@@ -127,7 +153,8 @@ const persist=()=>LS.set("fb_rows",JSON.stringify(rows));
 
 // ---- settings
 $("key").value=LS.get("fb_key")||""; $("model").value=LS.get("fb_model")||"claude-sonnet-5-5";
-if(!LS.get("fb_key")) $("set").open=true;
+let engine=LS.get("fb_engine")||"ocr";
+document.querySelectorAll("#eng input").forEach(r=>{r.checked=r.value===engine;r.onchange=()=>{engine=r.value;LS.set("fb_engine",engine);if(engine==="ai"&&!LS.get("fb_key"))$("set").open=true}});
 $("sv").onclick=()=>{LS.set("fb_key",$("key").value.trim());LS.set("fb_model",$("model").value.trim()||"claude-sonnet-5-5");$("sm").textContent="Saved";drawQ()};
 
 // ---- capture
@@ -161,7 +188,7 @@ $("cx").onclick=closeCam;
 function drawQ(){
   $("thumbs").innerHTML=items.map(i=>`<img src="${i.url}" alt="">`).join("");
   $("queue").innerHTML=items.map(it=>`<div class="q"><span class="n">${esc(it.name)}</span><span class="s ${it.st==="done"?"done":it.st==="error"?"err":it.st==="scanning"?"run":""}">${it.st==="error"?esc(it.err||"error"):it.st}</span></div>`).join("");
-  $("go").disabled=!items.some(i=>i.st==="queued"||i.st==="error");
+  const nq=items.filter(i=>i.st==="queued"||i.st==="error").length;$("go").disabled=!nq;$("go").textContent=nq?"Scan "+nq+" form"+(nq>1?"s":""):"Scan forms";$("xl").disabled=!rows.length;
   $("clr").disabled=!items.length&&!rows.length;
 }
 
@@ -187,15 +214,21 @@ async function extract(blob,signal){
   return JSON.parse(m[0]);
 }
 $("go").onclick=async()=>{
+  FBOCR.onProgress=(st,p)=>{$("pw").classList.remove("hide");$("pt").textContent=/language/.test(st)?"Downloading language data (first time only)…":/recogni/.test(st)?"Reading form…":"Preparing OCR engine…";if(p!=null)$("pg").value=p};
   ctl=new AbortController(); $("stop").disabled=false; $("go").disabled=true; $("msg").textContent="";
   for(const it of items){
     if(ctl.signal.aborted)break; if(it.st==="done")continue;
     it.st="scanning";it.err="";drawQ();
-    try{ rows.push(clean(await extract(it.b,ctl.signal),it.name)); it.st="done"; render(); }
-    catch(e){ if(e.name==="AbortError"){it.st="queued";break} it.st="error"; it.err=(e.message||"Failed").slice(0,70); if(/key|auth|401|403|credit|rate/i.test(e.message))break; }
+    try{
+      const d=engine==="ocr"?await FBOCR.run(it.b):await extract(it.b,ctl.signal), r=clean(d,it.name), nm=k=>COLS.find(c=>c[0]===k)[1];
+      (d._amb||[]).forEach(k=>{if(!r._bad.includes(k))r._bad.push(k)});
+      if(d._amb&&d._amb.length)r.note=(r.note+" Unclear: "+d._amb.map(nm).join("; ")).trim();
+      rows.push(r); it.st="done"; render();
+    }
+    catch(e){ if(e.name==="AbortError"){it.st="queued";break} it.st="error"; it.err=(e.message||"Failed").slice(0,70); if(/key|auth|401|403|credit|rate|load OCR/i.test(e.message))break; }
     drawQ();
   }
-  $("stop").disabled=true; drawQ();
+  $("stop").disabled=true; $("pw").classList.add("hide"); if(engine==="ocr")FBOCR.end(); drawQ();
 };
 $("stop").onclick=()=>ctl&&ctl.abort();
 $("man").onclick=()=>{rows.push(clean({},"Manual entry"));render()};
@@ -210,21 +243,32 @@ function clean(d,file){
   r._bad=bad; return r;
 }
 
+const LONG=["pos","imp","addr","note"];
+function fld(i,k,l,t,r){
+  const v=r[k]==null?"":r[k],fl=r._bad.includes(k)||(k==="note"&&r.note)?"flag":"",id=`f${i}_${k}`,at=`id="${id}" data-i="${i}" data-k="${k}"`;
+  let c;
+  if(Array.isArray(t)||t===5)c=`<select ${at}><option value=""></option>${(t===5?[1,2,3,4,5]:t).map(o=>`<option${o==v?" selected":""}>${o}</option>`).join("")}</select>`;
+  else if(LONG.includes(k))c=`<textarea ${at} rows="2">${esc(v)}</textarea>`;
+  else c=`<input ${at} value="${esc(v)}"${/pin|phone|mobile/.test(k)?' inputmode="tel"':k==="email"?' inputmode="email"':""}>`;
+  return `<div class="${fl} ${LONG.includes(k)?"wide":""}"><label for="${id}">${l}</label>${c}</div>`;
+}
+const nflag=r=>r._bad.length;
 function render(){
   $("res").classList.toggle("hide",!rows.length);
   $("cnt").textContent=rows.length+" form"+(rows.length===1?"":"s")+" captured";
-  const nr=rows.filter(r=>r.note||r._bad.length).length;
-  $("rv").textContent=nr?nr+" form(s) have notes or unclear fields — please review.":"";
-  $("tb").innerHTML="<thead><tr>"+COLS.map(c=>`<th>${c[1]}</th>`).join("")+"</tr></thead><tbody>"+
-   rows.map((r,i)=>"<tr>"+COLS.map(([k,,t])=>{
-     const fl=r._bad.includes(k)||(k==="note"&&r.note)?"flag":"";
-     const cls=k==="pos"||k==="imp"||k==="addr"||k==="note"?"w":t===5?"s1":"";
-     return `<td class="${fl}"><input class="${cls}" data-i="${i}" data-k="${k}" value="${esc(r[k])}"></td>`}).join("")+"</tr>").join("")+"</tbody>";
-  $("tb").querySelectorAll("input").forEach(inp=>inp.onchange=()=>{const r=rows[inp.dataset.i],k=inp.dataset.k,t=COLS.find(c=>c[0]===k)[2];
-    let v=inp.value.trim(); if(t===5){const n=parseInt(v,10);v=(n>=1&&n<=5)?n:""} else if(Array.isArray(t)){const m=t.find(o=>o.toLowerCase()===v.toLowerCase());if(m)v=m;else if(v)r._bad.push(k);} r[k]=v; r._bad=r._bad.filter(x=>x!==k);});
-  drawQ();
+  const nr=rows.filter(r=>nflag(r)).length;
+  $("rv").textContent=nr?nr+" form(s) have unclear fields (highlighted) — please check them.":"";
+  $("forms").innerHTML=rows.map((r,i)=>{const n=nflag(r),op=r._open!==undefined?r._open:n>0;
+    return `<details class="fc" data-c="${i}"${op?" open":""}><summary><b>${i+1}. ${esc(r.name||r.file)}</b><span class="s ${n?"err":"done"}" data-b="${i}">${n?n+" to check":"ok"}</span><button data-del="${i}" aria-label="Delete form">✕</button></summary><div class="fg">${COLS.filter(c=>c[0]!=="file").map(([k,l,t])=>fld(i,k,l,t,r)).join("")}</div></details>`}).join("");
+  drawQ(); persist();
 }
-
+$("forms").addEventListener("change",e=>{const t=e.target,i=t.dataset.i,k=t.dataset.k;if(i==null)return;
+  const r=rows[i],c=COLS.find(c=>c[0]===k);let v=t.value.trim();if(c[2]===5)v=v===""?"":+v;
+  r[k]=v;r._bad=r._bad.filter(x=>x!==k);t.closest("div").classList.remove("flag");
+  const b=document.querySelector(`[data-b="${i}"]`);if(b){const n=nflag(r);b.textContent=n?n+" to check":"ok";b.className="s "+(n?"err":"done")}
+  persist();});
+$("forms").addEventListener("click",e=>{const b=e.target.closest("[data-del]");if(!b)return;e.preventDefault();if(confirm("Delete this form?")){rows.splice(+b.dataset.del,1);render()}});
+$("forms").addEventListener("toggle",e=>{const d=e.target,c=d.dataset&&d.dataset.c;if(c!=null&&rows[c]){rows[c]._open=d.open;persist()}},true);
 function summary(){
   const n=rows.length, S=[["Feedback Summary"],["Forms scanned",n],[]];
   const cnt=(k,opts)=>opts.map(o=>rows.filter(r=>r[k]===o).length);
@@ -239,8 +283,6 @@ function summary(){
 function aoa(){return [COLS.map(c=>c[1]),...rows.map(r=>COLS.map(([k,,t])=>t===5&&r[k]!==""?Number(r[k]):r[k]))]}
 
 
-{const _r=render; render=function(){_r();persist()}}
-$("tb").addEventListener("change",persist);
 
 // ---- export (share sheet on phones, download elsewhere)
 async function out(blob,name){
