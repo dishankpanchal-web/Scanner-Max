@@ -137,11 +137,20 @@ $("shot").onclick=()=>$("fshot").click(); $("gal").onclick=()=>$("fgal").click()
 $("fshot").onchange=e=>{for(const f of e.target.files)addBlob(f,f.name||"Photo "+stamp());e.target.value=""};
 $("fgal").onchange=e=>{for(const f of e.target.files)if(f.type.startsWith("image/"))addBlob(f,f.name);e.target.value=""};
 $("cam").onclick=async()=>{
-  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){$("shot").click();return}
+  const say=t=>{$("msg").textContent=t;alert(t)};
+  if(!window.isSecureContext||!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){
+    say("Live camera isn't available here. It needs HTTPS and a normal browser (Chrome/Safari), not an in-app browser like WhatsApp or Instagram. Use 'Take photo' instead.");return}
   try{
-    stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:"environment"},width:{ideal:2560},height:{ideal:1920}},audio:false});
-    $("vid").srcObject=stream; taken=0; $("cc").textContent="0 taken"; $("camv").classList.remove("hide");
-  }catch(e){$("msg").textContent="Camera blocked — using the phone's camera app instead."; $("shot").click()}
+    stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:"environment"}},audio:false});
+    const v=$("vid"); v.srcObject=stream; taken=0; $("cc").textContent="0 taken"; $("camv").classList.remove("hide");
+    try{await v.play()}catch(e){}
+  }catch(e){
+    const n=e&&e.name;
+    say(n==="NotAllowedError"?"Camera permission is blocked. Tap the lock/site-settings icon in the address bar, set Camera to Allow, then reload. Or use 'Take photo'.":
+        n==="NotFoundError"?"No camera was found on this device.":
+        n==="NotReadableError"?"The camera is being used by another app. Close it and try again.":
+        "Camera error ("+(n||e.message)+"). Use 'Take photo' instead.");
+  }
 };
 $("snap").onclick=()=>{const v=$("vid"); if(!v.videoWidth)return;
   const c=document.createElement("canvas"); c.width=v.videoWidth; c.height=v.videoHeight; c.getContext("2d").drawImage(v,0,0);
